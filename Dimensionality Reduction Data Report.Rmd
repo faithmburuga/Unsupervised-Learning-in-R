@@ -1,0 +1,536 @@
+---
+title: "Part 1 - Dimensionality Reduction"
+output: html_document
+---
+# 1. Problem Definition
+## a. Specifying the Question
+
+Carrefour is a French multinational specializing in retail supermarkets. As a Data analyst at Carrefour Kenya, I'll be undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). In this section, I'll be reducing the dataset to a low dimensional dataset using the t-SNE algorithm. From this I'll perform analysis and provide insights gained from the analysis.
+
+## b. Defining the metric of success
+
+The project will be considered successful upon reduction to a lower dimension.
+
+## c. Understanding the context
+
+The data is from 3 branches of Carrefour Supermarket. It has 16 variables as follows:
+
+* Invoice ID - This is a unique ID for each customer that shopped from the supermarket.
+* Branch - This is the supermarket branch where a purchase was made.
+* Customer Type - This shows the type of customer; whether a normal customer or a member.
+* Gender - This shows the gender of the customer; whether male or female.
+* Product line - This shows the product that was purchased. There are 6 categories of products.
+* Unit Price - This shows the price of the product.
+* Quantity - This shows the quantity of product bought.
+* Tax - This shows the tax charged on the product.
+* Date - This shows the date the purchase was made.
+* Time - This shows the time the purchase was made.
+* Payment - This shows the mode of payment used; it could be either Ewallet, cash or credit card.
+* cogs - This stands for cost of goods sold.
+* gross margin percentage - This shows the gross margin percentage on the goods sold.
+* gross income - This column is the same as the tax column.
+* Rating - This shows the rating of the products.
+* Total - This is a combination of the cogs and tax charged on the goods.
+
+## d. Recording the Experimental Design
+
+For this project, I'll be reducing the dimensionality of the dataset using t-SNE algorithm.
+
+## e. Data relevance
+
+The data provided is of relevance to the question.
+
+
+# 2. Data Sourcing
+
+The data has been sourced from 3 Carrefour Kenya supermarkets.
+
+# 3. Checking the Data
+
+Begin by loading the dataset and displaying the first 6 rows.
+
+```{r}
+supermarket <- read.csv('http://bit.ly/CarreFourDataset')
+head(supermarket)
+```
+
+Then we check the dimensions of the dataset. It has 1000 rows and 16 columns.
+
+```{r}
+dim(supermarket)
+```
+
+We check for the structure of the dataset.
+
+```{r}
+str(supermarket)
+```
+
+Check the descriptive statistics of the dataset.
+
+```{r}
+summary(supermarket)
+```
+
+Check the datatypes of all the variables in the dataframe. 8 variables are either integer/numeric. The other 8 variables are character.
+
+```{r}
+sapply(supermarket, class)
+```
+
+Check the unique values in the variables. The variables Payment, Product line, Gender, Customer Type and Branch are discrete variables.
+
+```{r}
+length(unique(supermarket$Invoice.ID))
+length(unique(supermarket$Branch))
+length(unique(supermarket$Customer.type))
+length(unique(supermarket$Gender))
+length(unique(supermarket$Product.line))
+length(unique(supermarket$Unit.price))
+length(unique(supermarket$Quantity))
+length(unique(supermarket$Tax))
+length(unique(supermarket$Date))
+length(unique(supermarket$Time))
+length(unique(supermarket$Payment))
+length(unique(supermarket$cogs))
+length(unique(supermarket$gross.margin.percentage))
+length(unique(supermarket$gross.income))
+length(unique(supermarket$Rating))
+length(unique(supermarket$Total))
+```
+
+# 4. Cleaning the Data
+
+Begin by dropping unnecessary columns. I'll drop the gross income column since it's the same as the tax column and the invoice ID column since it is of no significance in this dataset. I'll also drop the Year and Gross Margin Percentage columns as they only have one constant value.
+
+```{r}
+supermarket1= subset(supermarket, select = -c(Invoice.ID, gross.income, gross.margin.percentage) )
+head(supermarket1)
+```
+
+Check for missing values. None were found.
+
+```{r}
+length(which(is.na(supermarket1)))
+```
+
+Check for duplicates. None were found.
+
+```{r}
+duplicated_rows <- supermarket1[duplicated(supermarket1),]
+duplicated_rows
+```
+
+Then we split the date and time column into day, month, year and hours and minutes respectively.
+
+```{r}
+library(tidyr)
+library(lubridate)
+
+supermarket2 <- separate(supermarket1, Date, c("Month", "Day", "Year"))
+head(supermarket2)
+
+supermarket3 <- separate(supermarket2, Time, c("Hour", "Minute"))
+head(supermarket3)
+```
+
+Change the datatypes of Month, Day, Year, Hour and Minute to numeric.
+
+```{r}
+# Check the datatypes of the dataset
+sapply(supermarket3, class)
+
+supermarket3 <- transform(supermarket3, Month = as.numeric(Month), 
+          Day = as.numeric(Day), Year = as.numeric(Year), Hour = as.numeric(Hour),
+          Minute = as.numeric(Minute))
+
+# Confirm that the datatypes have changed
+sapply(supermarket3, class)
+```
+
+Drop the Year column as well since it has a constant value.
+
+```{r}
+supermarket3= subset(supermarket3, select = -c(Year) )
+head(supermarket3)
+```
+
+Check for outliers by plotting boxplots for the numerical variables.
+
+```{r}
+boxplot(supermarket3$Unit.price, 
+        data = supermarket3,
+        main="Boxplot for Unit Price",
+        col="orange",
+        border="brown"
+)
+
+boxplot(supermarket3$Quantity, 
+        data = supermarket3,
+        main="Boxplot for Quantity",
+        col="orange",
+        border="brown"
+)
+
+boxplot(supermarket3$Tax, 
+        data = supermarket3,
+        main="Boxplot for Tax",
+        col="orange",
+        border="brown"
+)
+
+
+boxplot(supermarket3$cogs, 
+        data = supermarket3,
+        main="Boxplot for cogs",
+        col="orange",
+        border="brown"
+)
+
+
+boxplot(supermarket3$Rating, 
+        data = supermarket3,
+        main="Boxplot for Rating",
+        col="orange",
+        border="brown"
+)
+
+boxplot(supermarket3$Total, 
+        data = supermarket3,
+        main="Boxplot for Total",
+        col="orange",
+        border="brown"
+)
+```
+
+**Observations**
+
+From the boxplots, the total, cogs and tax variables have outliers. It is normal to have goods that cost higher than others, and this in turn affects the gross income, the total and the tax. I won't be removing the outliers in this dataset.
+
+
+# 5. Exploratory Data Analysis
+## 5.1 Univariate Analysis: Numerical Variables
+
+* Histograms
+
+```{r}
+Unit_Price <- supermarket3$Unit.price
+hist(Unit_Price)
+
+Quantity <- supermarket3$Quantity
+hist(Quantity)
+
+Tax <- supermarket3$Tax
+hist(Tax)
+
+Cost_of_Goods_Sold <- supermarket3$cogs
+hist(Cost_of_Goods_Sold)
+
+
+Rating <- supermarket3$Rating
+hist(Rating)
+
+Total <- supermarket3$Total
+hist(Total)
+```
+
+**Observations**
+
+1. The variables tax, cost of goods sold, quantity and total are right skewed.
+2. The variables unit price and rating assume a normal distribution.
+
+## 5.2 Univariate Analysis: Categorical Variables
+
+* Bar charts
+
+```{r}
+Branch <- supermarket3$Branch
+
+branch_frequency <- table(Branch)
+
+barplot(branch_frequency, col="blue",
+        main="Branches Chart",border="red")
+
+
+Customer_type <- supermarket3$Customer.type
+
+customer_frequency <- table(Customer_type)
+
+barplot(customer_frequency, col="blue",
+        main="Customer Type Chart",border="red")
+
+
+gender <- supermarket3$Gender
+
+gender_frequency <- table(gender)
+
+barplot(gender_frequency, col="blue",
+        main="Gender Chart",border="red")
+
+
+Product <- supermarket3$Product.line
+
+product_frequency <- table(Product)
+
+barplot(product_frequency, col="blue",
+        main="Product Line Chart",border="red")
+
+
+month <- supermarket3$Month
+
+month_frequency <- table(month)
+
+barplot(month_frequency, col="blue",
+        main="Months Chart",border="red")
+
+
+
+day <- supermarket3$Day
+
+day_frequency <- table(day)
+
+barplot(day_frequency, col="blue",
+        main="Days Chart",border="red")
+
+
+hour <- supermarket3$Hour
+
+hour_frequency <- table(hour)
+
+barplot(hour_frequency, col="blue",
+        main="Hours Chart",border="red")
+
+
+min <- supermarket3$Minute
+
+min_frequency <- table(min)
+
+barplot(min_frequency, col="blue",
+        main="Minutes Chart",border="red")
+
+
+payment <- supermarket3$Payment
+
+payment_frequency <- table(payment)
+
+barplot(payment_frequency, col="blue",
+        main="Payment Method Chart",border="red")
+
+```
+
+**Observations**
+
+1. Branch A has slightly more customers than Branch B and C in this dataset.
+2. The dataset has an equal number of member and normal customers.
+3. The dataset has an equal number of male and female customers.
+4. Fashion accessories, food and beverages and sports and travel are the top product categories customers purchased.
+5. The month of January had more shoppers than the months of February and March.
+6. Most transactions were recorded at 1900 hours.
+7. Cash and Ewallet mode of payment are more preferred over credit card.
+
+
+## 5.3 Bivariate Analysis: Categorical and categorical Variables
+
+* Double bar charts
+
+```{r}
+counts <- table(supermarket3$Branch, supermarket3$Product.line)
+barplot(counts, main="Product Line by Branch",
+        xlab="Total", col=c("darkblue","red", "pink"),
+        legend = rownames(counts), beside=TRUE)
+
+counts <- table(supermarket3$Branch, supermarket3$Customer.type)
+barplot(counts, main="Customer Type by Branch",
+        xlab="Total", col=c("darkblue","red", "pink"),
+        legend = rownames(counts), beside=TRUE)
+
+counts <- table(supermarket3$Customer.type, supermarket3$Payment)
+barplot(counts, main="Customer Type and Payment",
+        xlab="Total", col=c("darkblue","red"),
+        legend = rownames(counts), beside=TRUE)
+
+counts <- table(supermarket3$Gender, supermarket3$Product.line)
+barplot(counts, main="Gender and Product Line",
+        xlab="Total", col=c("darkblue","red"),
+        legend = rownames(counts), beside=TRUE)
+```
+
+**Observations**
+
+1. Branch C had the highest sales for fashion accessories and food and beverages compared to the other 3 branches.
+2. Branch A had the highest sales for electronic accessories and home and lifestyle products compared to the other 3 branches.
+3. Branch B had the highest sales for health and beauty and sports and travel products compared to the other 3 branches.
+4. Branch A has a higher number of normal customers than the other branches.
+5. Branch C has a higher number of member customers than the other branches.
+6. Most normal customers preferred to use cash and Ewallet over credit cards.
+7. Men shopped for fashion accessories and food and beverages more than women.
+8. Women shopped for electronic accessories and health and beauty more than men.
+
+
+Encode the categorical variables to be numerical so we can check for correlation.
+
+```{r}
+encode_ordinal <- function(x, order = unique(x)) {
+  x <- as.numeric(factor(x, levels = order))
+  x
+}
+
+
+table(supermarket3[["Branch"]], encode_ordinal(supermarket3[["Branch"]]), useNA = "ifany")
+
+table(supermarket3[["Customer.type"]], encode_ordinal(supermarket3[["Customer.type"]]), useNA = "ifany")
+
+table(supermarket3[["Gender"]], encode_ordinal(supermarket3[["Gender"]]), useNA = "ifany")
+
+table(supermarket3[["Product.line"]], encode_ordinal(supermarket3[["Product.line"]]), useNA = "ifany")
+
+table(supermarket3[["Payment"]], encode_ordinal(supermarket3[["Payment"]]), useNA = "ifany")
+
+supermarket4 <- supermarket3
+supermarket4[["Branch_encoded"]] <- encode_ordinal(supermarket3[["Branch"]])
+supermarket4[["Customer.type_encoded"]] <- encode_ordinal(supermarket3[["Customer.type"]])
+supermarket4[["Gender_encoded"]] <- encode_ordinal(supermarket3[["Gender"]])
+supermarket4[["Product.line_encoded"]] <- encode_ordinal(supermarket3[["Product.line"]])
+supermarket4[["Payment_encoded"]] <- encode_ordinal(supermarket3[["Payment"]])
+head(supermarket4)
+
+# Drop the categorical columns
+
+df= subset(supermarket4, select = -c(Branch, Customer.type, Gender, Product.line, Payment) )
+head(df)
+
+# Confirm the datatypes of the encoded columns
+
+sapply(df, class)
+
+```
+
+## 5.4 Bivariate Analysis: Numerical and numerical Variables
+
+* Correlation Matrix
+
+```{r}
+matrix <- cor(df)
+round(matrix, 2)
+
+library(corrplot)
+
+# Run the corrplot function
+
+df.cor = cor(df, method = c("spearman"))
+corrplot(df.cor)
+```
+
+**Observations**
+
+1. There is a strong positive correlation between the following variables:
+
+ * tax and cogs
+ * total and tax
+ * total and cogs
+ 
+ 2. The variables with the highest correlation to total are:
+ 
+ * cogs
+ * tax
+ * quantity
+ * unit price
+ 
+ 
+ 3. The variables with the least correlation to total are:
+ 
+ * month
+ * minute
+ * rating
+ * customer
+ * gender
+ * product line
+
+
+# 6. Implementing the Solution
+## 6.1 t-SNE 
+
+t-SNE is a dimensionality reduction method that allows one to visualize data in a lower number of dimensions. It finds a way to project data into a low dimensional space so that the clustering in the high dimensional spaces is preserved. 
+
+* Load the tnse library
+
+```{r}
+library(readr)
+library(Rtsne)
+```
+
+* Curate the database for analysis 
+
+```{r}
+Label <- df$Total
+df$Total <-as.factor(df$Total)
+```
+
+* For plotting:
+
+```{r}
+colors = rainbow(length(unique(df$Total)))
+names(colors) = unique(df$Total)
+```
+
+* Execute the algorithm on curated data
+
+```{r}
+tsne <- Rtsne(df[c(1:9,11:15)], dims = 2, perplexity=30, verbose=TRUE, max_iter = 500)
+```
+
+* Get the duration of execution
+
+```{r}
+exeTimeTsne <- system.time(Rtsne(df[c(1:9,11:15)], dims = 2, perplexity=30, verbose=TRUE, max_iter = 500))
+```
+
+* Plot the graph 
+ 
+```{r}
+plot(tsne$Y, t='n', main="tSNE", xlab="tSNE dimension 1", ylab="tSNE dimension 2", "cex.main"=2, "cex.lab"=1.5)
+text(tsne$Y, labels=df$Total, col=colors[df$Total])
+```
+ 
+* Tweak the parameters to get different plots
+
+```{r}
+tsne_plot <- function(perpl=30,iterations=500,learning=200){
+  set.seed(1) # for reproducibility
+  tsne <- Rtsne(df[c(1:9,11:15)], dims = 2, perplexity=perpl, verbose=TRUE, max_iter=iterations, eta=learning)
+  plot(tsne$Y, t='n', main = print(paste0("perplexity = ",perpl, ", max_iter = ",iterations, ", learning rate = ",learning)), xlab="tSNE dimension 1", ylab="tSNE dimension 2", "cex.main"=1, "cex.lab"=1.5)
+  text(tsne$Y, labels=df$Total, col=colors[df$Total])
+}
+
+perplexity_values <- c(2,5,30,50,100)
+sapply(perplexity_values,function(i){tsne_plot(perpl=i)})
+```
+
+
+**Observations**
+
+1. With perplexity values in the range 2 to 50, the diagrams show clusters but with very different shapes.
+2. With perplexity at 2, the separation of the clusters is not very clear. The clusters are more distinct at perplexity = 5.
+3. We can't tell the relative sizes of the clusters as the algorithm naturally expands dense clusters so as to even out the cluster size.
+4. The dimensions of the dataset are successfully reduced to 2 while the clustering in the high dimensional spaces is preserved. This is seen by the rainbow colors representing the clusters in the plots.
+
+
+
+# 7. Challenging the Solution
+
+1. For purposes of comparison, I could have also tweaked the parameters max_iteration and learning rate to see whether the clusters would have become more distinct.
+
+
+# 8. Follow up Questions
+
+1. Did we have the right data
+
+* The data provided for this question was relevant and yielded good results
+
+2. Do we need other data to answer our questions
+
+* No. The data provided was sufficient
+
+3. Do we have the right question
+
+* The question was right for the data given

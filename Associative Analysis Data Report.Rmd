@@ -1,0 +1,196 @@
+---
+title: "Part 3 Associative Analysis"
+output: html_document
+---
+
+# 1. Problem Definition
+## a. Specifying the Question
+
+Carrefour is a French multinational specializing in retail supermarkets. As a Data analyst at Carrefour Kenya, I'll be undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). In this section, I'll be creating association rules that will allow me to identify relationships between variables in the dataset. From this I'll perform analysis and provide insights on which relationships will result in increased sales.
+
+## b. Defining the metric of success
+
+The project will be considered successful upon identification of valuable relationships between the variables.
+
+## c. Understanding the context
+
+The dataset comprises of groups of items that will be associated with others. It has 7501 rows and 119 columns.
+
+## d. Recording the Experimental Design
+
+For this project, I'll be doing association analysis through a model built using the apriori function.
+
+
+## e. Data relevance
+
+The data provided is of relevance to the question.
+
+
+# 2. Data Sourcing
+
+The data has been sourced from Carrefour Kenya.
+
+
+# 3. Checking the Data
+
+* Begin by loading the dataset and getting the number of transactions.
+
+```{r}
+library(arules)
+Df = read.transactions('http://bit.ly/SupermarketDatasetII', sep = ",")
+Df
+```
+
+* Check the class of the object.
+
+```{r}
+class(Df)
+```
+
+* Preview the first 5 transactions.
+
+```{r}
+inspect(Df[1:5])
+```
+
+* Check a summary of the dataset.
+
+```{r}
+summary(Df)
+```
+
+* Explore the frequency of some articles by viewing transactions ranging from 10 to 12 and performing some operation in percentage terms of the total transactions.
+
+```{r}
+itemFrequency(Df[, 10:12],type = "absolute")
+round(itemFrequency(Df[, 10:12],type = "relative")*100,2)
+```
+
+The absolute support for body spray is 86, 14 for bramble and 253 for brownies.
+
+
+* Plot the frequency of items.
+
+```{r}
+itemFrequencyPlot(Df, topN = 10,col="darkgreen")
+itemFrequencyPlot(Df, support = 0.1,col="darkred")
+```
+
+1. From the first graph, we see that the items with the highest frequency are mineral water, eggs and spaghetti.
+2. From the second graph, we see that 3 of the items in the first graph did not have a minimum support of 0.1; these are ground beef, frozen vegetables and pancakes.
+
+
+# 4. Implementing the Solution using Associative Analysis
+
+* Build a model based on association rules using the apriori function.
+
+```{r}
+# Using Min Support as 0.001 and confidence as 0.8
+
+rules <- apriori (Df, parameter = list(supp = 0.001, conf = 0.8))
+rules
+
+# Using Min Support as 0.002 and confidence as 0.8
+
+rules2 <- apriori (Df, parameter = list(supp = 0.002, conf = 0.8)) 
+rules2
+
+# Using Min Support as 0.002 and confidence as 0.6
+
+rules3 <- apriori (Df, parameter = list(supp = 0.001, conf = 0.6)) 
+rules3
+
+summary(rules)
+```
+
+1. The first model's rules are 74. On increasing the minimum support of 0.001 to 0.002, the rules went down to  only 2. Using a higher level of support can make the model lose interesting rules.
+
+2. On reducing the minimum confidence level to 0.6 and the level of support to 0.001, the number of rules increased to 545. Using a low confidence level increases the number of rules to quite an extent and many will not be useful.
+
+We therefore go with the first model's rules.
+
+* Observe the first 5 rules built in the model.
+
+```{r}
+inspect(rules[1:5])
+```
+
+
+* Order these rules by the level of confidence criteria and then inspect the first five rules.
+
+```{r}
+rules<-sort(rules, by="confidence", decreasing=TRUE)
+inspect(rules[1:5])
+```
+
+1. From the first rule we see that if someone buys french fries, mushroom cream sauce and pasta they are 100% likely to buy escalope.
+2. Rule 2 shows that a customer buying ground beef, light cream and olive oil  is 100% likely to buy mineral water as well.
+3. Rule 3 shows that a customer buying cake, meatballs and mineral water is 100% likely to buy milk.
+4. Rule 4 shows that a customer buying cake, olive oil and shrimp is 100% likely to buy mineral water.
+5. Rule 5 shows that a customer buying mushroom cream sauce and pasta is 95% likely to buy escalope.
+
+* Do some further analysis to get more insights.
+
+**A. Determine items that customers who previously bought eggs might buy.**
+
+```{r}
+eggs <- subset(rules, subset = lhs %pin% "eggs")
+
+# Then order by confidence
+eggs <-sort(eggs, by="confidence", decreasing=TRUE)
+inspect(eggs[1:5])
+```
+
+**B. Determine items that customers who previously bought turkey might buy.**
+
+```{r}
+turkey <- subset(rules, subset = lhs %pin% "turkey")
+
+# Then order by confidence
+turkey <-sort(turkey, by="confidence", decreasing=TRUE)
+inspect(turkey[1:3])
+```
+
+
+**C. Determine which items customers bought before purchasing chocolate.**
+
+```{r}
+chocolate <- subset(rules, subset = rhs %pin% "chocolate")
+
+# Then order by confidence
+chocolate <-sort(chocolate, by="confidence", decreasing=TRUE)
+inspect(chocolate[1:2])
+```
+
+**Observations**
+
+1. Customers who previously bought eggs were 90% likely to buy shrimp and 80% likely to by mineral water. 
+2. Customers who previously bought turkey were 88% likely to buy eggs and 88% likely to by mineral water. 
+3. Customers who purchased escalope, french fries and shrimp were 88% more likely to buy chocolate afterwards.
+4. Customers who purchased red wine and tomato sauce were 80% more likely to buy chocolate afterwards.
+
+From these observed relationships, things like mushroom cream sauce and pasta should be put on shelves close to each other as once a customer buys these 2, the likelihood they'll also buy escalope is 95%.
+
+From the model's rules, the marketing department will be informed of relationships between variables and can know how to position products in the supermarkets to increase sales.
+
+I'd recommend the marketing team use the rules and more specifically the confidence levels in order to know how to arrange products for optimum sales.
+
+
+# 7. Challenging the Solution
+
+I could do more tuning on the minimum support and confidence levels to see if I could get an even better set of rules for the model built.
+
+
+# 8. Follow up Questions
+
+1. Did we have the right data
+
+* The data provided for this question was relevant and yielded good results
+
+2. Do we need other data to answer our questions
+
+* No. The data provided was sufficient
+
+3. Do we have the right question
+
+* The question was right for the data given

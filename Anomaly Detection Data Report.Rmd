@@ -1,0 +1,262 @@
+---
+title: "Part 4 Anomaly Detection"
+output: html_document
+---
+# 1. Problem Definition
+## a. Specifying the Question
+
+Carrefour is a French multinational specializing in retail supermarkets. As a Data analyst at Carrefour Kenya, I'll be undertaking a project that will inform the marketing department on the most relevant marketing strategies that will result in the highest no. of sales (total price including tax). In this section, I'll be checking whether there are any anomalies in the given sales dataset; the objective of this task being fraud detection. 
+
+## b. Defining the metric of success
+
+The project will be considered successful upon detection of anomalies in the dataset.
+
+## c. Understanding the context
+
+The data is from Carrefour Kenya. There are 2 variables:
+
+* Date - the date the purchase was made
+* Sales - the amount of money in sales
+
+## d. Recording the Experimental Design
+
+For this project, I'll be doing anomaly detection using the Anomalize Method.
+
+## e. Data relevance
+
+The data provided is of relevance to the question.
+
+
+# 2. Data Sourcing
+
+The data has been sourced from Carrefour Kenya supermarkets.
+
+# 3. Checking the Data
+
+Begin by loading the dataset and displaying the first 6 rows.
+
+```{r}
+sales = read.csv('C:/Users/USER-PC/Downloads/Supermarket_Sales_Forecasting - Sales.csv')
+head(sales) 
+```
+
+Then we check the dimensions of the dataset. It has 1000 rows and 2 columns.
+
+```{r}
+dim(sales)
+```
+
+Check descriptive statistics of the dataframe.
+
+```{r}
+summary(sales)
+```
+
+Check the datatypes of all the variables in the dataframe.
+
+```{r}
+sapply(sales, class)
+```
+
+Count the unique values in the variables.
+
+```{r}
+length(unique(sales$Date))
+length(unique(sales$Sales))
+```
+
+# 4. Cleaning the Data
+
+Check for missing values. There are no missing values.
+
+```{r}
+length(which(is.na(sales)))
+```
+
+Check for duplicates. There are no duplicated rows.
+
+```{r}
+duplicated_rows <- sales[duplicated(sales),]
+duplicated_rows
+```
+
+Change the datatype of Date from character to date and have the date in the format yyyymmdd.
+
+```{r}
+# This puts the date in the correct format
+sales <- transform(sales, Date = format(as.Date(Date, '%m/%d/%Y'), '%Y/%m/%d'))
+
+# Check whether the datatype has changes
+sapply(sales, class)
+
+# Change the Date datatype from character to numeric
+sales <- transform(sales, Date = as.Date(Date))
+
+# Confrim that it is in the correct datatype
+sapply(sales, class)
+
+# View the first 6 rows of the dataset
+head(sales)
+```
+
+Check for outliers by plotting boxplots for the numerical variables.
+
+```{r}
+boxplot(sales$Date, 
+        data = sales,
+        main="Boxplot for Date",
+        col="orange",
+        border="brown"
+)
+
+boxplot(sales$Sales, 
+        data = sales,
+        main="Boxplot for Sales",
+        col="orange",
+        border="brown"
+)
+```
+
+**Observation**
+
+The sales variable has a few outliers. I'll not remove them as they'll be useful in anomaly detection.
+
+
+# 5. Exploratory Data Analysis
+## 5.1 Univariate Analysis: Numerical Variables
+
+* Histograms
+
+```{r}
+Sales <- sales$Sales
+hist(Sales)
+```
+
+**Observation**
+
+The sales variable is right skewed.
+
+## 5.2 Univariate Analysis: Categorical Variables
+
+* Bar charts
+
+```{r}
+date <- sales$Date
+
+date_frequency <- table(date)
+
+barplot(date_frequency, col="blue",
+        main="Dates Chart",border="red")
+```
+
+**Observation**
+
+The most sales were made in the month of February. The date is not very clear from the graph.
+
+
+## 5.3. Bivariate Analysis: Categorical Variable and Numerical variable
+
+* Line Graph
+
+```{r}
+library(ggplot2)
+ggplot(sales, aes(x=Date, y=Sales, color=Sales)) + 
+  geom_line()
+```
+
+**Observations**
+
+The most sales were made in the month of February.
+
+
+# 6. Implementing the Solution: Anomaly Detection
+
+Order the dataset by Date.
+
+```{r}
+library(dplyr)
+sales = sales %>% arrange(Date)
+head(sales)
+```
+
+Get the average sales per day since there are many records for each date.
+
+```{r}
+sales = aggregate(Sales ~ Date, sales, mean)
+head(sales)
+```
+
+Converting data frame to a tibble time (tbl_time)
+
+```{r}
+library(tibbletime)
+sales = tbl_time(sales, Date)
+class(sales)
+```
+
+Check the dimensions of the reduced data set.
+
+```{r}
+dim(sales)
+```
+
+Build the model using Anomalize Method.
+
+```{r}
+# Load the required packages
+
+library(anomalize)
+library(dplyr)
+library(tibble)
+
+# Decompose data using time_decompose() function in anomalize package.
+# We will use stl method which extracts seasonality.
+
+sales_ts = sales %>%
+  as_tibble()
+sales_ts %>%
+  time_decompose(Sales, method = "stl",  frequency = "auto", trend = "auto") %>%  
+  anomalize(remainder, method = "gesd", alpha = 0.05, max_anoms = 0.1) %>% 
+  plot_anomaly_decomposition()
+
+
+# Plot the data again by recomposing data
+
+sales_ts %>% 
+  time_decompose(Sales) %>% 
+  anomalize(remainder) %>% 
+  time_recompose() %>%  
+  plot_anomalies(time_recomposed = TRUE, ncol = 3, alpha_dots = 0.5)
+
+
+# Extract the anomalies
+
+anomalizesales = sales_ts %>% 
+  time_decompose(Sales) %>%  
+  anomalize(remainder) %>%  
+  time_recompose() %>%  
+  filter(anomaly == 'Yes')
+
+anomalizesales
+
+```
+
+**Observations**
+
+1. The plot of the decomposed data shows a few anomalies
+2. The plot of the recomposed data does not show any anomalies, so there were no anomalies to be extracted.
+
+
+# 7. Follow up Questions
+
+1. Did we have the right data
+
+* The data provided for this question was relevant and yielded good results
+
+2. Do we need other data to answer our questions
+
+* No. The data provided was sufficient
+
+3. Do we have the right question
+
+* The question was right for the data given
